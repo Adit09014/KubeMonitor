@@ -1,0 +1,16 @@
+{
+  "name": "kubepulse",
+  "version": "1.0.0",
+  "description": "Cloud-Native Kubernetes Cluster Management and Monitoring Dashboard",
+  "scripts": {
+    "install:client": "cd client && npm install",
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server-go && go run main.go",
+    "dev": "npx concurrently \"npm run dev:server\" \"npm run dev:client\""
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
