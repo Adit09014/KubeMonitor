@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"kubepulse-go/database"
@@ -13,6 +14,50 @@ import (
 )
 
 var jwtSecret = []byte("super-secret-key-change-in-prod")
+
+func setAuthCookie(c *gin.Context, tokenString string) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	// Cookie parameters: name, value, maxAge (seconds), path, domain, secure, httpOnly
+	c.SetCookie("jwt_token", tokenString, 86400, "/", "", false, true)
+}
+
+func clearAuthCookie(c *gin.Context) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("jwt_token", "", -1, "/", "", false, true)
+}
+
+func extractToken(c *gin.Context) string {
+	// 1. Try to read token from cookie
+	if cookie, err := c.Cookie("jwt_token"); err == nil && cookie != "" {
+		return cookie
+	}
+	// 2. Fallback to Authorization header
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
+			return parts[1]
+		}
+	}
+	return ""
+}
+
+func parseJWT(tokenString string) (jwt.MapClaims, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+		return jwtSecret, nil
+	})
+	if err != nil || !token.Valid {
+		return nil, err
+	}
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, jwt.ErrTokenInvalidClaims
+	}
+	return claims, nil
+}
 
 type LoginRequest struct {
 	Username string `json:"username" binding:"required"`
@@ -51,10 +96,16 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
+	// Set HTTP-Only Cookie
+	setAuthCookie(c, tokenString)
+
 	c.JSON(http.StatusOK, gin.H{
 		"token": tokenString,
 		"user": gin.H{
+			"id":       user.ID,
+			"name":     user.Name,
 			"username": user.Username,
+			"email":    user.Email,
 			"role":     user.Role,
 		},
 	})
@@ -115,11 +166,82 @@ func RegisterHandler(c *gin.Context) {
 		return
 	}
 
+	// Set HTTP-Only Cookie
+	setAuthCookie(c, tokenString)
+
 	c.JSON(http.StatusCreated, gin.H{
 		"token": tokenString,
 		"user": gin.H{
+			"id":       newUser.ID,
+			"name":     newUser.Name,
 			"username": newUser.Username,
+			"email":    newUser.Email,
 			"role":     newUser.Role,
 		},
 	})
 }
+
+// MeHandler retrieves the currently authenticated user from the session cookie
+func MeHandler(c *gin.Context) {
+	tokenString := extractToken(c)
+	if tokenString == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: No token provided"})
+		return
+	}
+
+	claims, err := parseJWT(tokenString)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: Invalid or expired token"})
+		return
+	}
+
+	username, ok := claims["username"].(string)
+	if !ok || username == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: Invalid claims"})
+		return
+	}
+
+	var user models.User
+	if err := database.DB.Where("username = ?", username).First(&user).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user": gin.H{
+			"id":       user.ID,
+			"name":     user.Name,
+			"username": user.Username,
+			"email":    user.Email,
+			"role":     user.Role,
+		},
+	})
+}
+
+// LogoutHandler clears the authentication cookie
+func LogoutHandler(c *gin.Context) {
+	clearAuthCookie(c)
+	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
+}
+
+// AuthMiddleware protects routes by requiring a valid JWT cookie or Bearer token
+func AuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenString := extractToken(c)
+		if tokenString == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: Authentication required"})
+			return
+		}
+
+		claims, err := parseJWT(tokenString)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: Invalid or expired token"})
+			return
+		}
+
+		c.Set("username", claims["username"])
+		c.Set("role", claims["role"])
+		c.Next()
+	}
+}
+

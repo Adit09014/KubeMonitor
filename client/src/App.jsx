@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Box, Typography } from '@mui/material';
+import { Box, Typography, CircularProgress } from '@mui/material';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar, { DRAWER_WIDTH } from './components/Sidebar';
 import Navbar from './components/Navbar';
@@ -10,9 +10,55 @@ import Login from './pages/Login';
 import RBAC from './pages/RBAC';
 
 const ProtectedRoute = ({ children }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          bgcolor: 'background.default',
+        }}
+      >
+        <CircularProgress size={40} sx={{ color: 'primary.main', mb: 2 }} />
+        <Typography variant="body2" color="text.secondary">
+          Authenticating session...
+        </Typography>
+      </Box>
+    );
+  }
+
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+  return children;
+};
+
+const PublicOnlyRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          bgcolor: 'background.default',
+        }}
+      >
+        <CircularProgress size={40} sx={{ color: 'primary.main' }} />
+      </Box>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/" replace />;
   }
   return children;
 };
@@ -55,7 +101,7 @@ function App() {
     <Router>
       <AuthProvider>
         <Routes>
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
 
           {/* Protected Routes */}
           <Route path="/" element={<ProtectedRoute><DashboardLayout><Overview /></DashboardLayout></ProtectedRoute>} />
