@@ -22,8 +22,8 @@ const Login = () => {
     
     try {
       const endpoint = isRegistering 
-        ? 'http://localhost:5000/api/auth/register' 
-        : 'http://localhost:5000/api/auth/login';
+        ? 'http://localhost:8080/api/auth/register' 
+        : 'http://localhost:8080/api/auth/login';
         
       const payload = isRegistering 
         ? { name, username, email, password }

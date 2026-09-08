@@ -2,44 +2,22 @@ package database
 
 import (
 	"log"
-	"os"
 
-	"kubepulse-go/models"
-	"gorm.io/driver/sqlserver"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"kubepulse-go/models"
 )
 
 var DB *gorm.DB
 
 func Connect() {
-	server := os.Getenv("MSSQL_SERVER")
-	databaseName := os.Getenv("MSSQL_DATABASE")
-	trustedConn := os.Getenv("MSSQL_TRUSTED_CONNECTION")
-	encrypt := os.Getenv("MSSQL_ENCRYPT")
-	trustCert := os.Getenv("MSSQL_TRUST_SERVER_CERTIFICATE")
-
-	if server == "" || databaseName == "" {
-		log.Fatal("MSSQL_SERVER or MSSQL_DATABASE environment variable not set")
-	}
-
-	dsn := "server=" + server + ";database=" + databaseName + ";"
-	if trustedConn != "" {
-		dsn += "trusted_connection=" + trustedConn + ";"
-	}
-	if encrypt != "" {
-		dsn += "encrypt=" + encrypt + ";"
-	}
-	if trustCert != "" {
-		dsn += "TrustServerCertificate=" + trustCert + ";"
-	}
-
 	var err error
-	DB, err = gorm.Open(sqlserver.Open(dsn), &gorm.Config{})
+	DB, err = gorm.Open(sqlite.Open("kubepulse.db"), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	log.Println("Successfully connected to SQL Server!")
+	log.Println("Successfully connected to SQLite database!")
 
 	// Run AutoMigrate
 	log.Println("Running AutoMigrate...")

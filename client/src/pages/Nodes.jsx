@@ -9,7 +9,7 @@ const Nodes = () => {
   useEffect(() => {
     const fetchNodes = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/cluster/nodes');
+        const res = await axios.get('http://localhost:8080/api/cluster/nodes');
         setNodes(res.data.items || []);
         setLoading(false);
       } catch (err) {

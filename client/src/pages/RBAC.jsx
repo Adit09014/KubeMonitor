@@ -16,8 +16,8 @@ const RBAC = () => {
         const headers = { Authorization: `Bearer ${token}` };
         
         const [rolesRes, bindingsRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/rbac/roles', { headers }),
-          axios.get('http://localhost:5000/api/rbac/bindings', { headers })
+          axios.get('http://localhost:8080/api/rbac/roles', { headers }),
+          axios.get('http://localhost:8080/api/rbac/bindings', { headers })
         ]);
         
         setRoles(rolesRes.data.items || []);

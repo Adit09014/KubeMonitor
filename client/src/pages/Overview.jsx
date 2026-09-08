@@ -182,9 +182,9 @@ const Overview = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const infoRes = await axios.get('http://localhost:5000/api/cluster/info');
+        const infoRes = await axios.get('http://localhost:8080/api/cluster/info');
         setClusterInfo(infoRes.data);
-        const metricsRes = await axios.get('http://localhost:5000/api/cluster/metrics');
+        const metricsRes = await axios.get('http://localhost:8080/api/cluster/metrics');
         setMetrics(metricsRes.data);
       } catch (err) {
         console.error('Failed to fetch cluster data:', err);

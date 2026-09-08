@@ -1,6 +1,7 @@
 package models
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"gorm.io/gorm"
 )
@@ -18,11 +19,12 @@ type User struct {
 type StringArray []string
 
 // Value implements the driver.Valuer interface for StringArray
-func (a StringArray) Value() (interface{}, error) {
+func (a StringArray) Value() (driver.Value, error) {
 	if len(a) == 0 {
 		return "[]", nil
 	}
-	return json.Marshal(a)
+	b, err := json.Marshal(a)
+	return string(b), err
 }
 
 // Scan implements the sql.Scanner interface for StringArray
@@ -50,7 +52,7 @@ type Role struct {
 	gorm.Model
 	Name      string      `json:"name" gorm:"uniqueIndex;not null;size:255"`
 	Namespace string      `json:"namespace" gorm:"not null"`
-	Rules     StringArray `json:"rules" gorm:"type:nvarchar(max)"`
+	Rules     StringArray `json:"rules" gorm:"type:text"`
 }
 
 type RoleBinding struct {
@@ -58,5 +60,5 @@ type RoleBinding struct {
 	Name      string      `json:"name" gorm:"uniqueIndex;not null;size:255"`
 	Namespace string      `json:"namespace" gorm:"not null"`
 	RoleRef   string      `json:"roleRef" gorm:"not null"`
-	Subjects  StringArray `json:"subjects" gorm:"type:nvarchar(max)"`
+	Subjects  StringArray `json:"subjects" gorm:"type:text"`
 }
