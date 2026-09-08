@@ -34,7 +34,7 @@ func main() {
 
 	r.GET("/api/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"status": "ok",
+			"status":  "ok",
 			"message": "Go backend running",
 		})
 	})
@@ -52,6 +52,14 @@ func main() {
 	{
 		rbacGroup.GET("/roles", api.GetRolesHandler)
 		rbacGroup.GET("/bindings", api.GetRoleBindingsHandler)
+	}
+
+	// Cluster Routes
+	clusterGroup := r.Group("/api/cluster")
+	{
+		clusterGroup.GET("/info", api.ClusterInfoHandler)
+		clusterGroup.GET("/metrics", api.ClusterMetricsHandler)
+		clusterGroup.GET("/nodes", api.ClusterNodesHandler)
 	}
 
 	log.Println("Go Server listening on :8080")
