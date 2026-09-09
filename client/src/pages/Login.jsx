@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { ShieldAlert, KeyRound, User, Mail, UserCircle } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 const Login = () => {
   const [name, setName] = useState('');
@@ -22,8 +23,8 @@ const Login = () => {
     
     try {
       const endpoint = isRegistering 
-        ? 'http://localhost:8080/api/auth/register' 
-        : 'http://localhost:8080/api/auth/login';
+        ? `${API_BASE_URL}/api/auth/register` 
+        : `${API_BASE_URL}/api/auth/login`;
         
       const payload = isRegistering 
         ? { name, username, email, password }

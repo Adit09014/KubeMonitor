@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 const AuthContext = createContext();
 
@@ -13,7 +14,7 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuth = useCallback(async () => {
     try {
-      const res = await axios.get('http://localhost:8080/api/auth/me');
+      const res = await axios.get(`${API_BASE_URL}/api/auth/me`);
       if (res.data && res.data.user) {
         setUser(res.data.user);
         localStorage.setItem('user', JSON.stringify(res.data.user));
@@ -47,7 +48,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await axios.post('http://localhost:8080/api/auth/logout');
+      await axios.post(`${API_BASE_URL}/api/auth/logout`);
     } catch (err) {
       console.error('Logout error:', err);
     } finally {

@@ -2,6 +2,9 @@ package cluster
 
 import (
 	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	corev1 "k8s.io/api/core/v1"
@@ -9,16 +12,41 @@ import (
 	"kubepulse-go/kubernetes"
 )
 
+func getKubernetesClient() (*kubernetes.Client, error) {
+	client, err := kubernetes.NewInClusterClient()
+	if err == nil {
+		return client, nil
+	}
+	if kubeconfig := os.Getenv("KUBECONFIG"); kubeconfig != "" {
+		if c, err := kubernetes.NewOutOfClusterClient(kubeconfig); err == nil {
+			return c, nil
+		}
+	}
+	return kubernetes.NewOutOfClusterClient("/etc/rancher/k3s/k3s.yaml")
+}
+
+func proxyToRemoteCluster(c *gin.Context) {
+	remoteURLStr := os.Getenv("REMOTE_CLUSTER_API")
+	if remoteURLStr == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "REMOTE_CLUSTER_API not configured in .env"})
+		return
+	}
+	targetURL, err := url.Parse(remoteURLStr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid REMOTE_CLUSTER_API URL: " + err.Error()})
+		return
+	}
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	c.Request.Host = targetURL.Host
+	proxy.ServeHTTP(c.Writer, c.Request)
+}
+
 // Info returns general cluster information.
 func Info(c *gin.Context) {
-	client, err := kubernetes.NewInClusterClient()
+	client, err := getKubernetesClient()
 	if err != nil {
-		// Fallback to out-of-cluster config
-		client, err = kubernetes.NewOutOfClusterClient("/etc/rancher/k3s/k3s.yaml")
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Kubernetes client: " + err.Error()})
-			return
-		}
+		proxyToRemoteCluster(c)
+		return
 	}
 
 	version, err := client.GetServerVersion()
@@ -69,13 +97,10 @@ func Info(c *gin.Context) {
 
 // Metrics returns resource usage metrics (simplified).
 func Metrics(c *gin.Context) {
-	client, err := kubernetes.NewInClusterClient()
+	client, err := getKubernetesClient()
 	if err != nil {
-		client, err = kubernetes.NewOutOfClusterClient("/etc/rancher/k3s/k3s.yaml")
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Kubernetes client: " + err.Error()})
-			return
-		}
+		proxyToRemoteCluster(c)
+		return
 	}
 
 	nodes, err := client.GetNodeList()
@@ -130,13 +155,10 @@ func Metrics(c *gin.Context) {
 
 // Nodes returns a list of nodes with their status.
 func Nodes(c *gin.Context) {
-	client, err := kubernetes.NewInClusterClient()
+	client, err := getKubernetesClient()
 	if err != nil {
-		client, err = kubernetes.NewOutOfClusterClient("/etc/rancher/k3s/k3s.yaml")
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Kubernetes client: " + err.Error()})
-			return
-		}
+		proxyToRemoteCluster(c)
+		return
 	}
 
 	nodeList, err := client.GetNodeList()

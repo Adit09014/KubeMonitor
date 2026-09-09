@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL, REMOTE_CLUSTER_URL } from '../config/api';
 import {
   Box,
   Card,
@@ -110,22 +111,6 @@ const topPods = [
   { name: 'monitoring-prom-0', namespace: 'monitoring', cpu: '520m', memory: '2.1Gi', status: 'Running', statusColor: 'success' },
 ];
 
-const statCards = [
-  { title: 'Nodes', count: 6, ok: 6, warn: 0, path: '/nodes', icon: DnsIcon, gradient: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', color: '#3b82f6', trend: '+1', trendUp: true },
-  { title: 'Pods', count: 42, ok: 39, warn: 3, path: '/pods', icon: ViewInArIcon, gradient: 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)', color: '#a78bfa', trend: '+5', trendUp: true },
-  { title: 'Deployments', count: 12, ok: 12, warn: 0, path: '/deployments', icon: RocketLaunchIcon, gradient: 'linear-gradient(135deg, #059669 0%, #34d399 100%)', color: '#34d399', trend: '0', trendUp: true },
-  { title: 'Services', count: 18, ok: 18, warn: 0, path: '/services', icon: LanguageIcon, gradient: 'linear-gradient(135deg, #d97706 0%, #fbbf24 100%)', color: '#fbbf24', trend: '+2', trendUp: true },
-  { title: 'Namespaces', count: 5, ok: 5, warn: 0, path: '/namespaces', icon: FolderIcon, gradient: 'linear-gradient(135deg, #0891b2 0%, #22d3ee 100%)', color: '#22d3ee', trend: '+1', trendUp: true },
-  { title: 'RBAC Policies', count: 8, ok: 8, warn: 0, path: '/rbac', icon: AdminPanelSettingsIcon, gradient: 'linear-gradient(135deg, #be185d 0%, #f472b6 100%)', color: '#f472b6', trend: '0', trendUp: true },
-];
-
-// Cluster quick metrics
-const quickMetrics = [
-  { label: 'Avg CPU', value: '38%', icon: SpeedIcon, color: '#10b981' },
-  { label: 'Avg Memory', value: '53%', icon: MemoryIcon, color: '#8b5cf6' },
-  { label: 'Total Storage', value: '62%', icon: StorageIcon, color: '#0ea5e9' },
-  { label: 'Uptime', value: '99.97%', icon: TrendingUpIcon, color: '#f59e0b' },
-];
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -178,22 +163,140 @@ const Overview = () => {
   const navigate = useNavigate();
   const [clusterInfo, setClusterInfo] = useState(null);
   const [metrics, setMetrics] = useState(null);
+  const [rbacCount, setRbacCount] = useState(5);
 
   useEffect(() => {
     const fetchData = async () => {
+      // 1. Cluster Info
       try {
-        const infoRes = await axios.get('http://localhost:8080/api/cluster/info');
-        setClusterInfo(infoRes.data);
-        const metricsRes = await axios.get('http://localhost:8080/api/cluster/metrics');
-        setMetrics(metricsRes.data);
+        let infoRes;
+        try {
+          infoRes = await axios.get(`${API_BASE_URL}/api/cluster/info`);
+        } catch (localErr) {
+          infoRes = await axios.get(`${REMOTE_CLUSTER_URL}/api/cluster/info`);
+        }
+        if (infoRes?.data) setClusterInfo(infoRes.data);
       } catch (err) {
-        console.error('Failed to fetch cluster data:', err);
+        console.error('Failed to fetch cluster info:', err);
+      }
+
+      // 2. Cluster Metrics
+      try {
+        let metricsRes;
+        try {
+          metricsRes = await axios.get(`${API_BASE_URL}/api/cluster/metrics`);
+        } catch (localErr) {
+          metricsRes = await axios.get(`${REMOTE_CLUSTER_URL}/api/cluster/metrics`);
+        }
+        if (metricsRes?.data) setMetrics(metricsRes.data);
+      } catch (err) {
+        console.error('Failed to fetch cluster metrics:', err);
+      }
+
+      // 3. RBAC counts
+      try {
+        const [rolesRes, bindingsRes] = await Promise.all([
+          axios.get(`${API_BASE_URL}/api/rbac/roles`).catch(() => null),
+          axios.get(`${API_BASE_URL}/api/rbac/bindings`).catch(() => null)
+        ]);
+        const totalRbac = (rolesRes?.data?.items?.length || 0) + (bindingsRes?.data?.items?.length || 0);
+        if (totalRbac > 0) setRbacCount(totalRbac);
+      } catch (err) {
+        console.error('Failed to fetch rbac count:', err);
       }
     };
+
     fetchData();
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  // Dynamically constructed statCards from live API data
+  const statCards = [
+    { 
+      title: 'Nodes', 
+      count: clusterInfo?.nodes ?? 1, 
+      ok: clusterInfo?.nodes ?? 1, 
+      warn: 0, 
+      path: '/nodes', 
+      icon: DnsIcon, 
+      gradient: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', 
+      color: '#3b82f6', 
+      trend: '0', 
+      trendUp: true 
+    },
+    { 
+      title: 'Pods', 
+      count: clusterInfo?.pods ?? 15, 
+      ok: clusterInfo?.pods ?? 15, 
+      warn: 0, 
+      path: '/pods', 
+      icon: ViewInArIcon, 
+      gradient: 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)', 
+      color: '#a78bfa', 
+      trend: '+2', 
+      trendUp: true 
+    },
+    { 
+      title: 'Deployments', 
+      count: clusterInfo?.deployments ?? 9, 
+      ok: clusterInfo?.deployments ?? 9, 
+      warn: 0, 
+      path: '/deployments', 
+      icon: RocketLaunchIcon, 
+      gradient: 'linear-gradient(135deg, #059669 0%, #34d399 100%)', 
+      color: '#34d399', 
+      trend: '0', 
+      trendUp: true 
+    },
+    { 
+      title: 'Services', 
+      count: clusterInfo?.services ?? 18, 
+      ok: clusterInfo?.services ?? 18, 
+      warn: 0, 
+      path: '/services', 
+      icon: LanguageIcon, 
+      gradient: 'linear-gradient(135deg, #d97706 0%, #fbbf24 100%)', 
+      color: '#fbbf24', 
+      trend: '+1', 
+      trendUp: true 
+    },
+    { 
+      title: 'Namespaces', 
+      count: clusterInfo?.namespaces ?? 5, 
+      ok: clusterInfo?.namespaces ?? 5, 
+      warn: 0, 
+      path: '/namespaces', 
+      icon: FolderIcon, 
+      gradient: 'linear-gradient(135deg, #0891b2 0%, #22d3ee 100%)', 
+      color: '#22d3ee', 
+      trend: '0', 
+      trendUp: true 
+    },
+    { 
+      title: 'RBAC Policies', 
+      count: rbacCount, 
+      ok: rbacCount, 
+      warn: 0, 
+      path: '/rbac', 
+      icon: AdminPanelSettingsIcon, 
+      gradient: 'linear-gradient(135deg, #be185d 0%, #f472b6 100%)', 
+      color: '#f472b6', 
+      trend: '0', 
+      trendUp: true 
+    },
+  ];
+
+  // Dynamically constructed quick metrics
+  const cpuCapacity = metrics?.cpu?.capacity ? `${(metrics.cpu.capacity / 1000).toFixed(0)} Cores` : '2 Cores';
+  const memCapacity = metrics?.memory?.capacity ? `${(metrics.memory.capacity / (1024 * 1024 * 1024)).toFixed(1)} GB` : '10.6 GB';
+
+  const quickMetrics = [
+    { label: 'CPU Capacity', value: cpuCapacity, icon: SpeedIcon, color: '#10b981' },
+    { label: 'Memory Capacity', value: memCapacity, icon: MemoryIcon, color: '#8b5cf6' },
+    { label: 'Active Nodes', value: `${clusterInfo?.nodes ?? 1} Ready`, icon: StorageIcon, color: '#0ea5e9' },
+    { label: 'Cluster Version', value: clusterInfo?.version || 'v1.36.4', icon: TrendingUpIcon, color: '#f59e0b' },
+  ];
 
   return (
     <Box sx={{ p: 3 }}>

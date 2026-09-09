@@ -45,7 +45,17 @@ func (a *StringArray) Scan(value interface{}) error {
 		return nil
 	}
 
-	return json.Unmarshal(bytes, a)
+	if err := json.Unmarshal(bytes, a); err != nil {
+		// If not JSON formatted, treat as single string element
+		str := string(bytes)
+		if str != "" && str != "[]" {
+			*a = []string{str}
+		} else {
+			*a = []string{}
+		}
+		return nil
+	}
+	return nil
 }
 
 type Role struct {
